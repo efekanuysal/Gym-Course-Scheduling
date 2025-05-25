@@ -1,10 +1,10 @@
-from flask import Flask, request
+from flask import Flask, request, render_template, redirect, url_for, flash, session, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_restx import Api, Resource, fields, abort
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-import jwt  # This will work after installing PyJWT
+import jwt
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import abort
@@ -31,7 +31,7 @@ db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 api = Api(app, version='1.0', title='Gym Course Scheduling API',
           description='API for managing gym courses, rooms, users, and schedules',
-          authorizations=authorizations
+          authorizations=authorizations, 
           )
 
 # ------------ AUTHENTICATION DECORATOR ----------------
@@ -290,6 +290,266 @@ feedback_model = api.model('Feedback', {
 
 
 # ------------ AUTHENTICATION ENDPOINTS ----------------
+
+# ------------ WEB ROUTES ----------------
+
+@app.route('/')
+def home():
+    if 'user_token' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        ssn = request.form.get('ssn')
+        password = request.form.get('password')
+
+        user = Users.query.get(ssn)
+        if not user or not user.check_password(password):
+            flash('Invalid credentials', 'danger')
+            return redirect(url_for('login'))
+
+        # Generate token
+        token = jwt.encode({
+            'ssn': user.SSN,
+            'membershipType': user.membershipType,
+            'exp': datetime.utcnow() + timedelta(hours=24)
+        }, app.config['SECRET_KEY'], algorithm='HS256')
+
+        session['user_token'] = token
+        session['user_ssn'] = user.SSN
+        session['user_type'] = user.membershipType
+        session['user_name'] = f"{user.firstName} {user.lastName}"
+
+        return redirect(url_for('dashboard'))
+
+    return render_template('login.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        ssn = request.form.get('ssn')
+        first_name = request.form.get('first_name')
+        last_name = request.form.get('last_name')
+        password = request.form.get('password')
+        membership_type = request.form.get('membership_type')
+
+        if Users.query.get(ssn):
+            flash('User already exists', 'danger')
+            return redirect(url_for('register'))
+
+        if membership_type and not Membership.query.get(membership_type):
+            flash('Invalid membership type', 'danger')
+            return redirect(url_for('register'))
+
+        user = Users(
+            SSN=ssn,
+            firstName=first_name,
+            lastName=last_name,
+            membershipType=membership_type
+        )
+        user.set_password(password)
+
+        db.session.add(user)
+        db.session.commit()
+
+        flash('Registration successful! Please login.', 'success')
+        return redirect(url_for('login'))
+
+    memberships = Membership.query.filter(Membership.sign.notin_(['ad', 'in'])).all()
+    return render_template('register.html', memberships=memberships)
+
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_token' not in session:
+        return redirect(url_for('login'))
+
+    try:
+        # Verify token
+        jwt.decode(session['user_token'], app.config['SECRET_KEY'], algorithms=['HS256'])
+    except:
+        session.clear()
+        return redirect(url_for('login'))
+
+    user_type = session['user_type']
+
+    if user_type == 'ad':
+        return redirect(url_for('admin_dashboard'))
+    else:
+        return redirect(url_for('member_dashboard'))
+
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if 'user_token' not in session or session['user_type'] != 'ad':
+        return redirect(url_for('login'))
+
+    return render_template('admin/dashboard.html')
+
+
+@app.route('/member/dashboard')
+def member_dashboard():
+    if 'user_token' not in session:
+        return redirect(url_for('login'))
+
+    user_ssn = session['user_ssn']
+    enrolled_courses = User_Course.query.filter_by(userID=user_ssn).all()
+    bookings = RoomSchedule.query.filter_by(userID=user_ssn).all()
+
+    return render_template('member/dashboard.html',
+                           enrolled_courses=enrolled_courses,
+                           bookings=bookings)
+
+
+@app.route('/logout')
+def logout():
+    if 'user_token' in session:
+        token = session['user_token']
+        if not is_token_blacklisted(token):
+            blacklist_token(token)
+    session.clear()
+    return redirect(url_for('login'))
+
+
+# Admin Management Routes
+@app.route('/admin/users')
+def admin_users():
+    if 'user_token' not in session or session['user_type'] != 'ad':
+        return redirect(url_for('login'))
+
+    users = Users.query.all()
+    return render_template('admin/users.html', users=users)
+
+
+@app.route('/admin/courses')
+def admin_courses():
+    if 'user_token' not in session or session['user_type'] != 'ad':
+        return redirect(url_for('login'))
+
+    courses = Course.query.all()
+    instructors = Instructors.query.all()
+    rooms = Room.query.all()
+    return render_template('admin/courses.html',
+                           courses=courses,
+                           instructors=instructors,
+                           rooms=rooms)
+
+
+@app.route('/admin/rooms')
+def admin_rooms():
+    if 'user_token' not in session or session['user_type'] != 'ad':
+        return redirect(url_for('login'))
+
+    rooms = Room.query.all()
+    return render_template('admin/rooms.html', rooms=rooms)
+
+
+@app.route('/admin/schedules')
+def admin_schedules():
+    if 'user_token' not in session or session['user_type'] != 'ad':
+        return redirect(url_for('login'))
+
+    schedules = RoomSchedule.query.all()
+    courses = Course.query.all()
+    users = Users.query.all()
+    rooms = Room.query.all()
+
+    return render_template('admin/schedules.html',
+                           schedules=schedules,
+                           courses=courses,
+                           users=users,
+                           rooms=rooms)
+
+
+# Member Routes
+@app.route('/member/profile')
+def member_profile():
+    if 'user_token' not in session:
+        return redirect(url_for('login'))
+
+    user = Users.query.get(session['user_ssn'])
+    phones = Phone.query.filter_by(userSSN=session['user_ssn']).all()
+
+    return render_template('member/profile.html', user=user, phones=phones)
+
+
+@app.route('/member/courses')
+def member_courses():
+    if 'user_token' not in session:
+        return redirect(url_for('login'))
+
+    all_courses = Course.query.all()
+    enrolled_courses = User_Course.query.filter_by(userID=session['user_ssn']).all()
+    enrolled_course_names = [ec.courseName for ec in enrolled_courses]
+
+    return render_template('member/courses.html',
+                           courses=all_courses,
+                           enrolled_courses=enrolled_course_names)
+
+
+@app.route('/member/bookings')
+def member_bookings():
+    if 'user_token' not in session:
+        return redirect(url_for('login'))
+
+    bookings = RoomSchedule.query.filter_by(userID=session['user_ssn']).all()
+    return render_template('member/bookings.html', bookings=bookings)
+
+
+# API AJAX Endpoints
+@app.route('/api/enroll_course', methods=['POST'])
+def enroll_course():
+    if 'user_token' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    course_name = request.json.get('course_name')
+    user_id = session['user_ssn']
+
+    # Check if already enrolled
+    existing = User_Course.query.filter_by(
+        courseName=course_name,
+        userID=user_id
+    ).first()
+    if existing:
+        return jsonify({'success': False, 'message': 'Already enrolled'}), 400
+
+    enrollment = User_Course(courseName=course_name, userID=user_id)
+    db.session.add(enrollment)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Enrolled successfully'})
+
+
+@app.route('/api/book_room', methods=['POST'])
+def book_room():
+    if 'user_token' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+
+    data = request.json
+    user_id = session['user_ssn']
+
+    # Validate data
+    if not all(key in data for key in ['room_id', 'date', 'time', 'booking_type']):
+        return jsonify({'success': False, 'message': 'Missing required fields'}), 400
+
+    # Create booking
+    booking = RoomSchedule(
+        roomId=data['room_id'],
+        scheduleDate=datetime.strptime(data['date'], '%Y-%m-%d').date(),
+        scheduleTime=datetime.strptime(data['time'], '%H:%M').time(),
+        bookingType=data['booking_type'],
+        userID=user_id,
+        isBooked=True
+    )
+
+    db.session.add(booking)
+    db.session.commit()
+
+    return jsonify({'success': True, 'message': 'Booking successful'})
 
 @api.route('/auth/register')
 class Register(Resource):
@@ -920,4 +1180,4 @@ if __name__ == '__main__':
             print(f"Error initializing database: {e}")
 
     # Run the application
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5001)
