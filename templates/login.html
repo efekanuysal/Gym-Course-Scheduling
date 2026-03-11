@@ -1,48 +1,50 @@
 <!DOCTYPE html>
-
-<html>
-<link rel="stylesheet" href="assets/toolkit/styles/toolkit.css">
-<script src="assets/toolkit/scripts/toolkit.js"></script>
-<script src="assets/toolkit/styles/bootstrap.css"></script>
-<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" />
-<link
-    href="https://fonts.googleapis.com/css?family=Roboto+Slab:100,300,400,700|Roboto:100,100i,300,300i,400,400i,500,500i,700,700i,900,900i&subset=latin-ext"
-    rel="stylesheet">
-
+<html lang="en">
 <head>
     <title>Login</title>
+    <link rel="stylesheet" href="assets/toolkit/styles/toolkit.css">
+    <link rel="stylesheet" href="assets/toolkit/styles/bootstrap.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Roboto+Slab:100,300,400,700|Roboto:100,100i,300,300i,400,400i,500,500i,700,700i,900,900i&subset=latin-ext" rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="../static/style.css">
 </head>
-
 <body>
     <div class="header">
         <h1>Metu Gym Portal</h1>
     </div>
-    <br>
-    <br>
-    <br>
 
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div style="text-align: center; margin-top: 20px;">
+                {% for category, message in messages %}
+                    <span style="color: {% if category == 'danger' %}red{% else %}green{% endif %}; font-weight: bold; padding: 10px; border: 1px solid {% if category == 'danger' %}red{% else %}green{% endif %}; border-radius: 5px; background-color: #f9f9f9;">
+                        {{ message }}
+                    </span>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <br><br><br>
 
     <div class="CenterAreaLogin">
         <form method="POST" action="/login">
-            <label><b>User SSN
-                </b>
-            </label>
-            <input type="text" name="SSN" id="Entry" placeholder="12345678901">
+            <label><b>User SSN</b></label>
+            <input type="text" name="ssn" id="Entry" placeholder="11-digit SSN" required pattern="\d{11}" title="Must be exactly 11 digits">
             <br><br>
-            <label><b>Password
-                </b>
-            </label>
-            <input type="Password" name="password" id="Pass" placeholder="Password">
+
+            <label><b>Password</b></label>
+            <input type="password" name="password" id="Pass" placeholder="Password" required>
             <br><br>
+
             <input class="button-main" type="submit" name="log" id="log" value="Login">
             <br><br>
+
             <input type="checkbox" id="check">
             <span style="color: #111111">Remember me</span>
-
         </form>
     </div>
 
+    <script src="assets/toolkit/scripts/toolkit.js"></script>
 </body>
-
 </html>

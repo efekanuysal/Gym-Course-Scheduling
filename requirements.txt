@@ -7,5 +7,3 @@ flask-cors
 flask_restx
 psycopg2-binary
 PyJWT
-jwt
-
