@@ -986,6 +986,133 @@ class FeedbackResourceAPI(Resource):
         return {'message': 'Feedback deleted'}
 
 
+def is_admin_authenticated():
+    return 'user_token' in session and session.get('user_type') == 'ad'
+
+
+@app.route('/booking_admin', methods=['GET', 'POST'])
+def manage_admin_bookings():
+    if not is_admin_authenticated():
+        return redirect(url_for('login_view'))
+
+    if request.method == 'POST':
+        return process_booking_creation(request.get_json())
+
+    return render_booking_dashboard()
+
+
+def process_booking_creation(payload):
+    try:
+        schedule_date = datetime.strptime(payload['scheduleDate'], '%Y-%m-%d').date()
+        schedule_time = datetime.strptime(payload['scheduleTime'], '%H:%M').time()
+
+        new_booking = RoomSchedule(
+            roomId=payload['roomId'],
+            scheduleDate=schedule_date,
+            scheduleTime=schedule_time,
+            bookingType=payload['bookingType'],
+            courseName=payload['courseName'],
+            isBooked=True
+        )
+
+        db.session.add(new_booking)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Booking confirmed'})
+
+    except Exception as error:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(error)}), 400
+
+
+def render_booking_dashboard():
+    available_courses = [{'name': course.courseName} for course in Course.query.all()]
+    available_rooms = [{'id': room.ID, 'name': room.roomName} for room in Room.query.all()]
+    existing_schedules = [
+        {
+            'roomId': schedule.roomId,
+            'scheduleDate': str(schedule.scheduleDate),
+            'scheduleTime': str(schedule.scheduleTime)[:5]
+        }
+        for schedule in RoomSchedule.query.all()
+    ]
+
+    return render_template(
+        'book_class_admin.html',
+        courses=available_courses,
+        rooms=available_rooms,
+        roomSchedule=existing_schedules
+    )
+
+
+@app.route('/add_instructor', methods=['GET', 'POST'])
+def register_new_instructor():
+    if not is_admin_authenticated():
+        return redirect(url_for('login_view'))
+
+    if request.method == 'POST':
+        create_instructor_record(request.form)
+        return redirect(url_for('admin_users'))
+
+    return render_template('add instructor.html')
+
+
+def create_instructor_record(form_data):
+    new_instructor = Instructors(
+        SSN=form_data.get('ssn'),
+        firstName=form_data.get('first_name'),
+        lastName=form_data.get('last_name'),
+        phone=form_data.get('phone')
+    )
+    db.session.add(new_instructor)
+    db.session.commit()
+
+
+@app.route('/add_class', methods=['GET', 'POST'])
+def register_new_class():
+    if not is_admin_authenticated():
+        return redirect(url_for('login_view'))
+
+    if request.method == 'POST':
+        create_course_record(request.form)
+        return redirect(url_for('admin_courses'))
+
+    return render_template(
+        'add Class.html',
+        instructors=Instructors.query.all(),
+        rooms=Room.query.all()
+    )
+
+
+def create_course_record(form_data):
+    new_course = Course(
+        courseName=form_data.get('course_name'),
+        capacity=form_data.get('capacity'),
+        isSpecial=form_data.get('is_special') == 'on',
+        InstructorID=form_data.get('instructor_id'),
+        roomId=form_data.get('room_id')
+    )
+    db.session.add(new_course)
+    db.session.commit()
+
+
+@app.route('/remove_member', methods=['GET', 'POST'])
+def manage_member_deletion():
+    if not is_admin_authenticated():
+        return redirect(url_for('login_view'))
+
+    if request.method == 'POST':
+        delete_user_record(request.form.get('ssn'))
+        return redirect(url_for('admin_users'))
+
+    return render_template('remove_members.html', users=Users.query.all())
+
+
+def delete_user_record(user_ssn):
+    target_user = Users.query.get(user_ssn)
+    if target_user:
+        db.session.delete(target_user)
+        db.session.commit()
+
 def initialize_database():
     db.create_all()
     if not Membership.query.first():
@@ -1023,6 +1150,7 @@ def initialize_database():
         db.session.commit()
     except Exception:
         db.session.rollback()
+
 
 
 if __name__ == '__main__':
