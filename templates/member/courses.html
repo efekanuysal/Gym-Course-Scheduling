@@ -2,9 +2,72 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Member Courses</title>
+    <link rel="stylesheet" href="../../static/style.css">
+    <link rel="stylesheet" href="../../static/bootstrap.css">
 </head>
 <body>
+    <div class="header">
+        <h1>Metu Gym Portal</h1>
+    </div>
 
+    <div class="scrollHeader">
+        <table class="Bar">
+            <tr>
+                <th><a href="/member/dashboard" class="Item"><h3><u>Dashboard</u></h3></a></th>
+                <th><a href="/member/profile" class="Item"><h3><u>Profile</u></h3></a></th>
+                <th><a href="/member/courses" class="Item"><h3><u>Courses</u></h3></a></th>
+                <th><a href="/member/bookings" class="Item"><h3><u>Bookings</u></h3></a></th>
+                <th><a href="/logout" class="Item"><h3><u>Logout</u></h3></a></th>
+            </tr>
+        </table>
+    </div>
+
+    <div class="courses-container" style="padding: 40px;">
+        <h2 style="color:#cf0a2c;">Available Courses</h2>
+
+        <div class="course-list" style="display: flex; flex-wrap: wrap; gap: 20px;">
+            {% for course in courses %}
+                <div class="course-card" style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; width: 300px;">
+                    <h3>{{ course.courseName }}</h3>
+                    <p><strong>Capacity:</strong> {{ course.capacity }}</p>
+                    <p><strong>Room ID:</strong> {{ course.roomId }}</p>
+                    <p><strong>Special:</strong> {{ 'Yes' if course.isSpecial else 'No' }}</p>
+
+                    {% if course.courseName in enrolled_courses %}
+                        <button class="button-main" disabled style="background-color: #28a745;">Already Enrolled</button>
+                    {% else %}
+                        <button class="button-main" onclick="enrollInCourse('{{ course.courseName }}')">Enroll</button>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <script>
+        const enrollInCourse = async (courseName) => {
+            try {
+                const requestPayload = {
+                    course_name: courseName
+                };
+
+                const response = await fetch('/api/enroll_course', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestPayload)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Course Enrollment Failed');
+                }
+
+                window.location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+    </script>
 </body>
 </html>

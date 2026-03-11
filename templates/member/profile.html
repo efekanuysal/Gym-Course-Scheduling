@@ -2,9 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Member Profile</title>
+    <link rel="stylesheet" href="../../static/style.css">
+    <link rel="stylesheet" href="../../static/bootstrap.css">
 </head>
 <body>
+    <div class="header">
+        <h1>Metu Gym Portal</h1>
+    </div>
 
+    <div class="scrollHeader">
+        <table class="Bar">
+            <tr>
+                <th><a href="/member/dashboard" class="Item"><h3><u>Dashboard</u></h3></a></th>
+                <th><a href="/member/profile" class="Item"><h3><u>Profile</u></h3></a></th>
+                <th><a href="/member/courses" class="Item"><h3><u>Courses</u></h3></a></th>
+                <th><a href="/member/bookings" class="Item"><h3><u>Bookings</u></h3></a></th>
+                <th><a href="/logout" class="Item"><h3><u>Logout</u></h3></a></th>
+            </tr>
+        </table>
+    </div>
+
+    <div class="CenterArea" style="padding: 15px; width: 40%; margin: auto; margin-top: 50px;">
+        <h2 style="color:#cf0a2c;">User Profile</h2>
+
+        <div class="profile-details" style="text-align: left; background: #f9f9f9; padding: 20px; border-radius: 8px;">
+            <p><strong>SSN:</strong> {{ user.SSN }}</p>
+            <p><strong>First Name:</strong> {{ user.firstName }}</p>
+            <p><strong>Last Name:</strong> {{ user.lastName }}</p>
+            <p><strong>Membership Type:</strong> {{ user.membershipType }}</p>
+
+            <h3 style="color:#cf0a2c; margin-top: 20px;">Registered Phones</h3>
+            <ul>
+                {% for phone in phones %}
+                    <li>{{ phone.phone }}</li>
+                {% else %}
+                    <li>No phones registered.</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
 </body>
 </html>

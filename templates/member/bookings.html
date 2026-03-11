@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Member Bookings</title>
+    <link rel="stylesheet" href="../../static/style.css">
+    <link rel="stylesheet" href="../../static/bootstrap.css">
+</head>
+<body>
+    <div class="header">
+        <h1>Metu Gym Portal</h1>
+    </div>
+
+    <div class="scrollHeader">
+        <table class="Bar">
+            <tr>
+                <th><a href="/member/dashboard" class="Item"><h3><u>Dashboard</u></h3></a></th>
+                <th><a href="/member/profile" class="Item"><h3><u>Profile</u></h3></a></th>
+                <th><a href="/member/courses" class="Item"><h3><u>Courses</u></h3></a></th>
+                <th><a href="/member/bookings" class="Item"><h3><u>Bookings</u></h3></a></th>
+                <th><a href="/logout" class="Item"><h3><u>Logout</u></h3></a></th>
+            </tr>
+        </table>
+    </div>
+
+    <div class="booking-container" style="padding: 40px; max-width: 800px; margin: auto;">
+        <h2 style="color:#cf0a2c;">Your Current Bookings</h2>
+        <ul style="list-style: none; padding: 0;">
+            {% for booking in bookings %}
+                <li style="background: #f4f4f4; margin-bottom: 10px; padding: 15px; border-radius: 5px;">
+                    <strong>Room ID:</strong> {{ booking.roomId }} |
+                    <strong>Date:</strong> {{ booking.scheduleDate }} |
+                    <strong>Time:</strong> {{ booking.scheduleTime }} |
+                    <strong>Type:</strong> {{ booking.bookingType }}
+                </li>
+            {% else %}
+                <li style="padding: 15px;">No active bookings found.</li>
+            {% endfor %}
+        </ul>
+
+        <hr style="margin: 40px 0;">
+
+        <h2 style="color:#cf0a2c;">Book a New Session</h2>
+
+        <div style="display: flex; flex-direction: column; gap: 15px; max-width: 400px;">
+            <div class="date-selector">
+                <label for="booking-date">Select Date:</label>
+                <input type="date" id="booking-date" class="drop-Box" style="width: 100%;">
+            </div>
+
+            <div class="time-selector">
+                <label for="booking-time">Select Time:</label>
+                <input type="time" id="booking-time" class="drop-Box" style="width: 100%;">
+            </div>
+
+            <div class="room-selector">
+                <label for="room-select">Select Room:</label>
+                <select class="drop-Box" id="room-select" style="width: 100%;">
+                    <option value="">Loading Rooms...</option>
+                </select>
+            </div>
+
+            <button class="button-main" id="book-button" style="margin-top: 15px;">Confirm Booking</button>
+        </div>
+    </div>
+
+    <script>
+        const fetchRooms = async () => {
+            try {
+                const response = await fetch('/api/v1/rooms');
+                if (!response.ok) {
+                    throw new Error('Network Failure');
+                }
+
+                const rooms = await response.json();
+                const roomSelect = document.getElementById('room-select');
+
+                roomSelect.innerHTML = '<option value="">Select a Room</option>';
+
+                rooms.forEach(room => {
+                    const option = document.createElement('option');
+                    option.value = room.ID;
+                    option.textContent = room.roomName;
+                    roomSelect.appendChild(option);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        };
+
+        const submitBooking = async () => {
+            const roomId = document.getElementById('room-select').value;
+            const date = document.getElementById('booking-date').value;
+            const time = document.getElementById('booking-time').value;
+
+            if (!roomId || !date || !time) {
+                alert('All fields must be filled');
+                return;
+            }
+
+            const payload = {
+                room_id: roomId,
+                date: date,
+                time: time,
+                booking_type: 'private'
+            };
+
+            try {
+                const response = await fetch('/api/book_room', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Booking Request Failed');
+                }
+
+                window.location.reload();
+            } catch (error) {
+                alert(error.message);
+            }
+        };
+
+        const initializeBookingPage = () => {
+            fetchRooms();
+            document.getElementById('book-button').addEventListener('click', submitBooking);
+        };
+
+        window.addEventListener('DOMContentLoaded', initializeBookingPage);
+    </script>
+</body>
+</html>

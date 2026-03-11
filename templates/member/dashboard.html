@@ -3,15 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>Member Dashboard</title>
-    <link rel="stylesheet" href="../static/style.css">
-    <link rel="stylesheet" href="assets/toolkit/styles/toolkit.css">
-    <link rel="stylesheet" href="assets/toolkit/styles/bootstrap.css">
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.6.3/css/font-awesome.min.css" />
-    <link href="https://fonts.googleapis.com/css?family=Roboto+Slab:100,300,400,700|Roboto:100,100i,300,300i,400,400i,500,500i,700,700i,900,900i&subset=latin-ext" rel="stylesheet">
-    <script src="assets/toolkit/scripts/toolkit.js"></script>
+    <link rel="stylesheet" href="../../static/style.css">
+    <link rel="stylesheet" href="../../static/bootstrap.css">
 </head>
 <body>
-
     <div class="header">
         <h1>Metu Gym Portal</h1>
     </div>
@@ -19,64 +14,184 @@
     <div class="scrollHeader">
         <table class="Bar">
             <tr>
-                <th>
-                    <a href="/member/dashboard" class="Item">
-                        <h3><u>Dashboard</u></h3>
-                    </a>
-                </th>
-                <th>
-                    <a href="/member/profile" class="Item">
-                        <h3><u>Profile</u></h3>
-                    </a>
-                </th>
-                <th>
-                    <a href="/member/courses" class="Item">
-                        <h3><u>Courses</u></h3>
-                    </a>
-                </th>
-                <th>
-                    <a href="/member/bookings" class="Item">
-                        <h3><u>Bookings</u></h3>
-                    </a>
-                </th>
-                <th>
-                    <a href="/logout" class="Item">
-                        <h3><u>Logout</u></h3>
-                    </a>
-                </th>
+                <th><a href="/member/dashboard" class="Item"><h3><u>Dashboard</u></h3></a></th>
+                <th><a href="/member/profile" class="Item"><h3><u>Profile</u></h3></a></th>
+                <th><a href="/member/courses" class="Item"><h3><u>Courses</u></h3></a></th>
+                <th><a href="/member/bookings" class="Item"><h3><u>Bookings</u></h3></a></th>
+                <th><a href="/logout" class="Item"><h3><u>Logout</u></h3></a></th>
             </tr>
         </table>
     </div>
 
-    <br><br><br>
+    <div class="dashboard-content" style="padding: 40px; max-width: 1000px; margin: auto;">
+        <h2 style="color: white; margin-bottom: 20px;">Your Schedule</h2>
 
-    <div class="dashboard-content">
-        <h2>Welcome to your Dashboard</h2>
-
-        <div class="enrolled-courses-section">
-            {% if enrolled_courses %}
-                <h3>Your Enrolled Courses</h3>
-                <ul>
-                    {% for enrollment in enrolled_courses %}
-                        <li>{{ enrollment.courseName }}</li>
-                    {% endfor %}
-                </ul>
-            {% endif %}
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <button id="prev-month-btn" class="button-main" style="width: auto; padding: 10px 20px;">Previous Month</button>
+            <h3 id="current-month-display" style="color: white; margin: 0;"></h3>
+            <button id="next-month-btn" class="button-main" style="width: auto; padding: 10px 20px;">Next Month</button>
         </div>
 
-        <br>
-
-        <div class="bookings-section">
-            {% if bookings %}
-                <h3>Your Bookings</h3>
-                <ul>
-                    {% for booking in bookings %}
-                        <li>Room {{ booking.roomId }} | {{ booking.scheduleDate }} at {{ booking.scheduleTime }}</li>
-                    {% endfor %}
-                </ul>
-            {% endif %}
-        </div>
+        <div id="calendar-container" class="calendar"></div>
     </div>
 
+    <script>
+        const injectedSchedules = [
+            {% for booking in bookings %}
+            {
+                scheduleDate: "{{ booking.scheduleDate }}",
+                scheduleTime: "{{ booking.scheduleTime }}",
+                bookingType: "{{ booking.bookingType }}",
+                courseName: "{{ booking.courseName }}"
+            },
+            {% endfor %}
+        ];
+
+        class CalendarManager {
+            constructor(schedules, containerId, monthDisplayId) {
+                this.schedules = schedules;
+                this.container = document.getElementById(containerId);
+                this.monthDisplay = document.getElementById(monthDisplayId);
+
+                const today = new Date();
+                this.currentYear = today.getFullYear();
+                this.currentMonthIndex = today.getMonth();
+                this.today = today;
+
+                this.groupedSchedules = this.groupSchedulesByDate(this.schedules);
+            }
+
+            groupSchedulesByDate(schedules) {
+                return schedules.reduce((grouped, schedule) => {
+                    const [year, month, day] = schedule.scheduleDate.split('-');
+                    const dateKey = `${parseInt(year, 10)}-${parseInt(month, 10)}-${parseInt(day, 10)}`;
+
+                    if (!grouped[dateKey]) {
+                        grouped[dateKey] = [];
+                    }
+                    grouped[dateKey].push(schedule);
+
+                    return grouped;
+                }, {});
+            }
+
+            getMonthContext() {
+                const targetDate = new Date(this.currentYear, this.currentMonthIndex);
+
+                return {
+                    monthName: targetDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                    totalDaysInMonth: new Date(this.currentYear, this.currentMonthIndex + 1, 0).getDate(),
+                    firstDayOfMonth: new Date(this.currentYear, this.currentMonthIndex, 1).getDay(),
+                    monthNumber: this.currentMonthIndex + 1,
+                    currentYear: this.currentYear
+                };
+            }
+
+            createDaysHeader(gridContainer) {
+                const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                weekDays.forEach(day => {
+                    const header = document.createElement('div');
+                    header.className = 'day-header';
+                    header.textContent = day;
+                    gridContainer.appendChild(header);
+                });
+            }
+
+            createEmptySlots(gridContainer, count) {
+                for (let i = 0; i < count; i++) {
+                    const emptySlot = document.createElement('div');
+                    emptySlot.className = 'day empty-day';
+                    gridContainer.appendChild(emptySlot);
+                }
+            }
+
+            appendDailyEvents(dayCell, events) {
+                events.forEach(event => {
+                    const eventElement = document.createElement('div');
+                    eventElement.className = 'class-event';
+
+                    const eventLabel = event.bookingType === 'class' ? event.courseName : 'Private Booking';
+                    const formattedTime = event.scheduleTime.substring(0, 5);
+
+                    eventElement.textContent = `${eventLabel} (${formattedTime})`;
+                    dayCell.appendChild(eventElement);
+                });
+            }
+
+            isToday(day) {
+                return day === this.today.getDate() &&
+                       this.currentMonthIndex === this.today.getMonth() &&
+                       this.currentYear === this.today.getFullYear();
+            }
+
+            render() {
+                this.container.innerHTML = '';
+                const monthContext = this.getMonthContext();
+
+                this.monthDisplay.textContent = monthContext.monthName;
+
+                const monthWrapper = document.createElement('div');
+                monthWrapper.className = 'month';
+
+                const daysGrid = document.createElement('div');
+                daysGrid.className = 'days';
+
+                this.createDaysHeader(daysGrid);
+                this.createEmptySlots(daysGrid, monthContext.firstDayOfMonth);
+
+                for (let day = 1; day <= monthContext.totalDaysInMonth; day++) {
+                    const dayCell = document.createElement('div');
+                    dayCell.className = 'day';
+
+                    if (this.isToday(day)) {
+                        dayCell.classList.add('today');
+                    }
+
+                    const dayLabel = document.createElement('div');
+                    dayLabel.className = 'day-number';
+                    dayLabel.textContent = day;
+                    dayCell.appendChild(dayLabel);
+
+                    const dateKey = `${monthContext.currentYear}-${monthContext.monthNumber}-${day}`;
+                    const dailyEvents = this.groupedSchedules[dateKey] || [];
+
+                    this.appendDailyEvents(dayCell, dailyEvents);
+                    daysGrid.appendChild(dayCell);
+                }
+
+                monthWrapper.appendChild(daysGrid);
+                this.container.appendChild(monthWrapper);
+            }
+
+            nextMonth() {
+                this.currentMonthIndex++;
+                if (this.currentMonthIndex > 11) {
+                    this.currentMonthIndex = 0;
+                    this.currentYear++;
+                }
+                this.render();
+            }
+
+            previousMonth() {
+                this.currentMonthIndex--;
+                if (this.currentMonthIndex < 0) {
+                    this.currentMonthIndex = 11;
+                    this.currentYear--;
+                }
+                this.render();
+            }
+        }
+
+        const initializeDashboardCalendar = () => {
+            const calendarManager = new CalendarManager(injectedSchedules, 'calendar-container', 'current-month-display');
+
+            document.getElementById('prev-month-btn').addEventListener('click', () => calendarManager.previousMonth());
+            document.getElementById('next-month-btn').addEventListener('click', () => calendarManager.nextMonth());
+
+            calendarManager.render();
+        };
+
+        window.addEventListener('DOMContentLoaded', initializeDashboardCalendar);
+    </script>
 </body>
 </html>
